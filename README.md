@@ -1,6 +1,8 @@
 # Metamorphosis
 A tool for watching changes between Revit models, addin and Dynamo.
 
+### Forked version adds changes in elements types as a different kind of changes
+
 [Download Link](https://github.com/mattmas/Metamorphosis/blob/master/addin/MetamorphosisInstaller.zip)
 
 When you receive a new Revit model from a partner - it's a challenge to know exactly what has changed.

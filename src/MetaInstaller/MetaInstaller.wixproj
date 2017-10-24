@@ -63,6 +63,24 @@
   <ItemGroup>
     <Content Include="Metamorphosis.addin" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RevitFingerPrintDynamo\MetamorphosisDynamo.csproj">
+      <Name>MetamorphosisDynamo</Name>
+      <Project>{29836b39-295e-4111-81d2-d0dec4e3815c}</Project>
+      <Private>True</Private>
+      <DoNotHarvest>True</DoNotHarvest>
+      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
+      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
+    </ProjectReference>
+    <ProjectReference Include="..\RevitFingerPrint\Metamorphosis.csproj">
+      <Name>Metamorphosis</Name>
+      <Project>{997fca6e-9ee3-48b0-8deb-30149ba1a88b}</Project>
+      <Private>True</Private>
+      <DoNotHarvest>True</DoNotHarvest>
+      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
+      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(WixTargetsPath)" />
   <!--
 	To modify your build process, add your task inside one of the targets below and uncomment it.

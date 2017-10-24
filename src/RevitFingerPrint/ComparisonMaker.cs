@@ -19,6 +19,7 @@ namespace Metamorphosis
         private Dictionary<int, string> _parameterDict = new Dictionary<int, string>();
         private Dictionary<string, string> _headerDict = new Dictionary<string, string>();
         private Dictionary<int, string> _valueDict = new Dictionary<int, string>();
+        private Dictionary<int, int> _typeIdDict = new Dictionary<int, int>();
         private Dictionary<string, int> _categoryCount = new Dictionary<string, int>();
         private HashSet<string> _requestedCategoryNames = new HashSet<string>();
         private IList<Level> _allLevels;
@@ -142,18 +143,28 @@ namespace Metamorphosis
 
         private Change buildDeleted(RevitElement element)
         {
-            Change c = new Change() { ElementId = element.ElementId, Category = element.Category, ChangeType = Change.ChangeTypeEnum.DeletedElement,
-                Level = (element.Level != null) ? element.Level : "", IsType = element.IsType };
+            Change c = new Change()
+            {
+                ElementId = element.ElementId,
+                Category = element.Category,
+                ChangeType = Change.ChangeTypeEnum.DeletedElement,
+                Level = (element.Level != null) ? element.Level : "",
+                IsType = element.IsType,
+                ElementTypeId = element.ElementTypeId
+            };
             c.BoundingBoxDescription = Utilities.RevitUtils.SerializeBoundingBox(element.BoundingBox);
             return c;
         }
         private Change compareElements(RevitElement current, RevitElement previous)
         {
+
+            //First check if element type has change
+            Change c = compareTypeId(current, previous);
+
             // compare the parameter values
-
             // at present, we can only compare string values
-            Change c = compareParameters(current, previous);
-
+            if (c != null) return c;
+            c = compareParameters(current, previous);
             if (c != null) return c;
 
             c = compareGeometry(current, previous);
@@ -166,10 +177,33 @@ namespace Metamorphosis
         {
             Element e = _doc.GetElement(new ElementId(current.ElementId));
 
-            Change c = new Change() { ElementId = current.ElementId, UniqueId = e.UniqueId, Category = current.Category, ChangeType = Change.ChangeTypeEnum.NewElement, Level = (current.Level != null) ? current.Level : "", IsType = current.IsType };
+            Change c = new Change() { ElementId = current.ElementId, UniqueId = e.UniqueId, Category = current.Category, ChangeType = Change.ChangeTypeEnum.NewElement, Level = (current.Level != null) ? current.Level : "", IsType = current.IsType, ElementTypeId = current.ElementTypeId };
             c.BoundingBoxDescription = Utilities.RevitUtils.SerializeBoundingBox(current.BoundingBox);
 
             return c;
+        }
+        private Change compareTypeId(RevitElement current, RevitElement previous)
+        {
+
+            if (current.ElementTypeId != previous.ElementTypeId)
+            {
+                Element e = _doc.GetElement(new ElementId(current.ElementId));
+                Change c = new Change()
+                {
+                    ElementId = current.ElementId,
+                    UniqueId = e.UniqueId,
+                    Category = (e.Category != null) ? e.Category.Name : "(none)",
+                    ChangeType = Change.ChangeTypeEnum.ElementTypeId,
+                    ChangeDescription = String.Format("Type changed from {0} to {1}", previous.ElementTypeId, current.ElementTypeId),
+                    ElementTypeId = current.ElementTypeId,
+                    Level = (current.Level != null) ? current.Level : "",
+                    IsType = current.IsType
+                };
+                c.BoundingBoxDescription = Utilities.RevitUtils.SerializeBoundingBox(current.BoundingBox);
+
+                return c;
+            }
+            return null;
         }
 
         private Change compareParameters(RevitElement current, RevitElement previous)
@@ -202,6 +236,7 @@ namespace Metamorphosis
                     Category = (e.Category != null) ? e.Category.Name : "(none)",
                     ChangeType = Change.ChangeTypeEnum.ParameterChange,
                     ChangeDescription = description.ToString(),
+                    ElementTypeId = current.ElementTypeId, //ElementType to be reported
                     Level = (current.Level != null) ? current.Level : "",
                     IsType = current.IsType
                 };
@@ -256,31 +291,31 @@ namespace Metamorphosis
             }
 
             // only a move of the second one...
-            if ((current.LocationPoint2 != null) && (previous.LocationPoint2 != null) && 
+            if ((current.LocationPoint2 != null) && (previous.LocationPoint2 != null) &&
                     didMove(previous.LocationPoint2, current.LocationPoint2, tolerance, out dist))
             {
-                
-                    Change c = new Change()
-                    {
-                        ChangeType = Change.ChangeTypeEnum.Move,
-                        Category = current.Category,
-                        ElementId = current.ElementId,
-                        UniqueId = current.UniqueId,
-                        ChangeDescription = "Location Offset " + dist + " ft.",
-                        Level = current.Level
-                    };
-                    if (current.BoundingBox != null) c.BoundingBoxDescription = Utilities.RevitUtils.SerializeBoundingBox(current.BoundingBox);
+
+                Change c = new Change()
+                {
+                    ChangeType = Change.ChangeTypeEnum.Move,
+                    Category = current.Category,
+                    ElementId = current.ElementId,
+                    UniqueId = current.UniqueId,
+                    ChangeDescription = "Location Offset " + dist + " ft.",
+                    Level = current.Level
+                };
+                if (current.BoundingBox != null) c.BoundingBoxDescription = Utilities.RevitUtils.SerializeBoundingBox(current.BoundingBox);
 
                 // only one side moved though...
                 c.MoveDescription = Utilities.RevitUtils.SerializeMove(previous.LocationPoint2, current.LocationPoint2);
-                    return c;
-                
+                return c;
+
             }
 
             // check rotation
             float rotationTolerance = 0.0349f; // two degrees?
             float rotationDiff = current.Rotation - previous.Rotation;
-            
+
             if (Math.Abs(rotationDiff) > rotationTolerance)
             {
                 Change c = new Change()
@@ -344,15 +379,15 @@ namespace Metamorphosis
             if (!AllCategories)
             {
                 foreach (var c in RequestedCategories) _requestedCategoryNames.Add(c.Name);
-                
+
             }
-            
+
             FilteredElementCollector coll = new FilteredElementCollector(_doc);
             coll.WhereElementIsNotElementType();
 
             var elems = coll.ToElements().Where(e => e.Category != null).ToList();
             Dictionary<ElementId, Element> typesToCheck = new Dictionary<ElementId, Element>();
-            foreach( var elem in elems )
+            foreach (var elem in elems)
             {
                 if (elem.Category == null) continue; // we don't want this.
 
@@ -366,7 +401,7 @@ namespace Metamorphosis
             //////////////////
             populateExisting(typesToCheck.Values.ToList(), true);
             populateExisting(elems, false);
-            
+
         }
 
         private void populateExisting(IList<Element> elems, bool isTypes)
@@ -380,7 +415,7 @@ namespace Metamorphosis
                 _allLevels = coll.Cast<Level>().ToList();
             }
 
-            foreach ( var e in elems)
+            foreach (var e in elems)
             {
                 Category c = e.Category;
                 if (e is FamilySymbol)
@@ -401,7 +436,7 @@ namespace Metamorphosis
                 _currentElems.Add(e.Id.IntegerValue, revitElem);
 
                 IList<Autodesk.Revit.DB.Parameter> parms = Utilities.RevitUtils.GetParameters(e);
-                foreach( var p in parms)
+                foreach (var p in parms)
                 {
                     //Quick and Dirty - will need to call different stuff for each thing
                     try
@@ -409,7 +444,7 @@ namespace Metamorphosis
                         if (p.Definition == null) continue; // we don't want this!
                         string definition = p.Definition.Name;
                         string val = null;
-                        switch ( p.StorageType)
+                        switch (p.StorageType)
                         {
                             case StorageType.String:
                                 val = p.AsString();
@@ -502,8 +537,15 @@ namespace Metamorphosis
                             if (lev != null) revitElem.Level = lev.Name;
                         }
                     }
+
+                    if (e.GetTypeId() == ElementId.InvalidElementId) //Check if element has type 
+                    {
+                        revitElem.ElementTypeId = e.Category.Id.IntegerValue;
+                    }
+                    else { revitElem.ElementTypeId = e.GetTypeId().IntegerValue; ; }
+
                 }
-                
+
             }
         }
         private void readPrevious()
@@ -513,6 +555,7 @@ namespace Metamorphosis
             readValues();
             readElements();
             readGeometry();
+            readTypeId();
         }
 
         private void readHeader()
@@ -541,10 +584,10 @@ namespace Metamorphosis
 
                             if (Version.TryParse(val, out schemaVersion))
                             {
-                              
+
                             }
                         }
-                        
+
                     }
                     if (schemaVersion < Utilities.DataUtility.CurrentVersion)
                     {
@@ -569,7 +612,7 @@ namespace Metamorphosis
             {
                 _doc.Application.WriteJournalComment("Error reading headers: " + ex.GetType().Name + ": " + ex.Message, false);
             }
-           
+
         }
 
         private void readParameters()
@@ -609,6 +652,30 @@ namespace Metamorphosis
                     _valueDict[id] = value;
                 }
 
+            }
+        }
+
+        private void readTypeId()
+        {
+            using (SQLiteConnection conn = new SQLiteConnection("Data Source=" + _dbFilename + ";Version=3;"))
+            {
+                conn.Open();
+
+                var cmd = conn.CreateCommand();
+                cmd.CommandText = "select id,typeId FROM _objects_tid";
+
+                SQLiteDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+
+                    int entity_id = reader.GetInt32(0);
+                    int value = reader.GetInt32(1);
+                    if (_idValues.ContainsKey(entity_id) == false) continue;
+                    RevitElement elem = _idValues[entity_id];
+
+                    elem.ElementTypeId = value;
+
+                }
             }
         }
 
@@ -657,6 +724,7 @@ namespace Metamorphosis
                         elem.IsType = (isType == 1);
                     }
                 }
+
             }
         }
 

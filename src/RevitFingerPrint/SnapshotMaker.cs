@@ -74,21 +74,21 @@ namespace Metamorphosis
                     command.ExecuteNonQuery();
                 }
             }
-        
+
         }
 
-        
+
         private void exportParameterData()
         {
             DateTime start = DateTime.Now;
-            
+
             // retrieve all of the instance elements, and process them.
             FilteredElementCollector coll = new FilteredElementCollector(_doc);
             coll.WhereElementIsNotElementType();
 
             Dictionary<ElementId, Element> typeElementsUsed = new Dictionary<ElementId, Element>();
             IList<Element> instances = coll.ToElements().Where(e => e.Category != null).ToList();
-            foreach ( var elem in instances)
+            foreach (var elem in instances)
             {
                 if (elem.Category == null) continue; // don't do it!
 
@@ -141,10 +141,39 @@ namespace Metamorphosis
             updateValueTable();
             System.Diagnostics.Debug.WriteLine((DateTime.Now - start) + ": Value Table Updated for All");
 
+            updateTypeIdTable(instances);
+            System.Diagnostics.Debug.WriteLine((DateTime.Now - start) + ": TypeId Table Updated for Instances");
+
             updateGeometryTable(instances);
             System.Diagnostics.Debug.WriteLine((DateTime.Now - start) + ": Geometry Table Updated for Types");
             Duration = DateTime.Now - start;
             System.Diagnostics.Debug.WriteLine("Total Time: " + Duration.TotalMinutes + " minutes");
+        }
+
+        private void updateTypeIdTable(IList<Element> elements)
+        {
+            using (SQLiteConnection conn = new SQLiteConnection("Data Source=" + _dbFilename + ";Version=3;"))
+            {
+                conn.Open();
+                using (var transaction = conn.BeginTransaction())
+                {
+                    foreach (Element e in elements)
+                    {
+                        var cmd = conn.CreateCommand();
+                        //Get TypeID or Category Id
+                        ElementId typeId = e.GetTypeId();
+                        if (typeId == ElementId.InvalidElementId)
+                        {
+                            typeId = e.Category.Id;
+                        }
+
+                        cmd.CommandText = String.Format("INSERT INTO _objects_tid (id,typeId) VALUES({0},{1})", e.Id.IntegerValue, typeId.IntegerValue);
+                        cmd.ExecuteNonQuery();
+                    }
+                    transaction.Commit();
+                }
+
+            }
         }
 
         private void updateIdTable(IList<Element> elements, bool isTypes)
@@ -165,7 +194,7 @@ namespace Metamorphosis
                         string catName = (c != null) ? c.Name : "(none)";
                         if (catName.Contains("'")) catName = catName.Replace("'", "''");
                         var cmd = conn.CreateCommand();
-                        cmd.CommandText = String.Format("INSERT INTO _objects_id (id,external_id,category,isType) VALUES({0},'{1}','{2}',{3})", e.Id.IntegerValue, e.UniqueId,catName, (isTypes) ? 1:0);
+                        cmd.CommandText = String.Format("INSERT INTO _objects_id (id,external_id,category,isType) VALUES({0},'{1}','{2}',{3})", e.Id.IntegerValue, e.UniqueId, catName, (isTypes) ? 1 : 0);
 
                         cmd.ExecuteNonQuery();
                     }
@@ -184,9 +213,9 @@ namespace Metamorphosis
                 {
                     foreach (var pair in _headerDict)
                     {
-                       
+
                         var cmd = conn.CreateCommand();
-                        cmd.CommandText = String.Format("INSERT INTO _objects_header (keyword,value) VALUES('{0}','{1}')", pair.Key,pair.Value);
+                        cmd.CommandText = String.Format("INSERT INTO _objects_header (keyword,value) VALUES('{0}','{1}')", pair.Key, pair.Value);
 
                         cmd.ExecuteNonQuery();
                     }
@@ -268,7 +297,7 @@ namespace Metamorphosis
                                     val = p.AsValueString();
                                     break;
                             }
-                            
+
 
                             if (val == null) val = "(n/a)";
 
@@ -294,21 +323,21 @@ namespace Metamorphosis
         private void updateParameterDictionary(IList<Element> elems)
         {
 
-            foreach( Element e in elems)
+            foreach (Element e in elems)
             {
                 IList<Parameter> parms = Utilities.RevitUtils.GetParameters(e);
 
-                                             
-                foreach( Parameter p in parms )
+
+                foreach (Parameter p in parms)
                 {
                     if (p.Definition == null) continue; // ignore!
                     if (_paramDict.ContainsKey(p.Id.IntegerValue) == false) _paramDict.Add(p.Id.IntegerValue, p);
-                }                                
+                }
             }
         }
 
 
-     
+
 
         private void updateGeometryTable(IList<Element> elements)
         {
@@ -344,7 +373,7 @@ namespace Metamorphosis
                             {
                                 XYZ pt1 = pt.Point;
                                 // special cases.
-                                if ((e.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Columns)||
+                                if ((e.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Columns) ||
                                     (e.Category.Id.IntegerValue == (int)BuiltInCategory.OST_StructuralColumns))
                                 {
                                     // in this case, get the Z value from the 
@@ -369,7 +398,8 @@ namespace Metamorphosis
                                         }
                                     }
                                 }
-                                catch {  // swallow. Some just don't like it...
+                                catch
+                                {  // swallow. Some just don't like it...
                                 }
                             }
                             else
@@ -412,10 +442,10 @@ namespace Metamorphosis
                         string levName = String.Empty;
                         if (lev != null) levName = lev.Name;
 
-                            var cmd = conn.CreateCommand();
+                        var cmd = conn.CreateCommand();
                         cmd.CommandText = String.Format("INSERT INTO _objects_geom (id,BoundingBoxMin,BoundingBoxMax,Location,Location2,Level,Rotation) VALUES({0},'{1}','{2}','{3}','{4}','{5}',{6})", e.Id.IntegerValue, bbMin, bbMax, lp, lp2, escapeQuote(levName), rotation.ToString(CultureInfo.InvariantCulture));
 
-                        if (_logLevel == Utilities.Settings.LogLevel.Verbose) _doc.Application.WriteJournalComment(cmd.CommandText,false);
+                        if (_logLevel == Utilities.Settings.LogLevel.Verbose) _doc.Application.WriteJournalComment(cmd.CommandText, false);
 
                         cmd.ExecuteNonQuery();
                     }
@@ -446,7 +476,7 @@ namespace Metamorphosis
 
             return lev;
         }
-        
+
         private string escapeQuote(string input)
         {
             return input.Replace("'", "''");

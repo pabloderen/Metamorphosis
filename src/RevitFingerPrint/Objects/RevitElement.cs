@@ -16,6 +16,8 @@ namespace Metamorphosis.Objects
 
         public Boolean IsType { get; set; }
 
+        public int ElementTypeId { get; set; } //ElementType to be reported
+
         public string Level { get; set; }
 
         public Dictionary<string, string> Parameters { get; set; } = new Dictionary<string, string>();

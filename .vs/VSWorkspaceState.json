@@ -1,10 +1,12 @@
 {
   "ExpandedNodes": [
     "",
+    "\\addin",
     "\\src",
     "\\src\\MetaInstaller",
     "\\src\\RevitFingerPrint",
-    "\\src\\RevitFingerPrintDynamo"
+    "\\src\\RevitFingerPrintDynamo",
+    "\\src\\RevitFingerPrint\\Objects"
   ],
   "SelectedNode": "\\src\\Metamorphosis.sln",
   "PreviewInSolutionExplorer": false
